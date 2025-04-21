@@ -9,24 +9,27 @@ class Parser:
 
     def tokenize(self, expression: str) -> List[str]:
         token_pattern = re.compile(r'''
-            (\d+\.?\d*([eE][+-]?\d+)?|\.\d+([eE][+-]?\d+)?)  # Числа с научной нотацией
+            (\d+\.?\d*([eE][+-]?\d+)?|\.\d+([eE][+-]?\d+)?)  # Числа
+            |(sqrt|sin|cos|tg|ctg|ln|exp|pi|e)                # Функции и константы
             |([+\-*/^()])                                     # Операторы и скобки
             |(\S)                                             # Недопустимые символы
-        ''', re.VERBOSE)
+        ''', re.VERBOSE | re.IGNORECASE)
 
         tokens = []
-        for match in token_pattern.finditer(expression.replace(" ", "")):
-            number, _, _, op_or_bracket, invalid = match.groups()
+        expression = expression.replace(" ", "").lower()
+        for match in token_pattern.finditer(expression):
+            number, _, _, func_or_const, op_or_bracket, invalid = match.groups()
             if invalid:
                 raise InvalidExpressionError(f"Недопустимый символ: {invalid}")
             elif number:
                 tokens.append(('NUMBER', float(number)))
-            elif op_or_bracket in ('+', '-', '*', '/', '^'):
+            elif func_or_const:
+                if func_or_const in ('pi', 'e'):
+                    tokens.append(('CONST', func_or_const))
+                else:
+                    tokens.append(('FUNC', func_or_const))
+            elif op_or_bracket in ('+', '-', '*', '/', '^', '(', ')'):
                 tokens.append(('OP', op_or_bracket))
-            elif op_or_bracket in ('(', ')'):
-                tokens.append(('BRACKET', op_or_bracket))
-
-        print("Tokens:", tokens)
         return tokens
 
     def parse(self, expression: str) -> Union[float, dict]:
@@ -59,25 +62,37 @@ class Parser:
 
         token_type, token_value = self.tokens[self.pos]
 
-        # Обработка скобок
-        if token_type == 'BRACKET' and token_value == '(':
+        if token_type == 'FUNC':
+            func_name = token_value
             self.pos += 1
-            node = self._parse_expression()  # Рекурсивный парсинг внутреннего выражения
-            # Проверяем закрывающую скобку
+            if self.pos >= len(self.tokens) or self.tokens[self.pos][1] != '(':
+                raise InvalidExpressionError(f"Ожидалось '(' после функции {func_name}")
+            self.pos += 1
+            arg = self._parse_expression()
             if self.pos >= len(self.tokens) or self.tokens[self.pos][1] != ')':
-                raise InvalidExpressionError("Ожидалась закрывающая скобка ')'")
+                raise InvalidExpressionError(f"Ожидалось ')' после аргумента функции {func_name}")
             self.pos += 1
+            return {'function': func_name, 'argument': arg}
+        elif token_type == 'CONST':
+            self.pos += 1
+            return {'constant': token_value}
+        elif token_value == '(':
+            self.pos += 1
+            node = self._parse_expression()
+            if self.pos >= len(self.tokens) or self.tokens[self.pos][1] != ')':
+                raise InvalidExpressionError("Ожидалось ')'")
+            self.pos += 1
+            return node
         elif token_type == 'NUMBER':
-            node = {'value': token_value}
             self.pos += 1
+            return {'value': token_value}
         else:
-            raise InvalidExpressionError(f"Ожидалось число или '(', получено: {token_value}")
+            raise InvalidExpressionError(f"Ожидалось число, функция или скобка")
 
-        # Обработка степени после скобок/чисел
+        # Обработка степени
         while self.pos < len(self.tokens) and self.tokens[self.pos][1] == '^':
             op = self.tokens[self.pos][1]
             self.pos += 1
             right = self._parse_factor()
             node = {'op': op, 'left': node, 'right': right}
-
         return node
