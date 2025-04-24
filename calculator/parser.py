@@ -19,6 +19,7 @@ class Parser:
         expression = expression.replace(" ", "").lower()
         for match in token_pattern.finditer(expression):
             number, _, _, func_or_const, op_or_bracket, invalid = match.groups()
+            
             if invalid:
                 raise InvalidExpressionError(f"Недопустимый символ: {invalid}")
             elif number:
@@ -61,6 +62,7 @@ class Parser:
             raise InvalidExpressionError("Неожиданный конец выражения")
 
         token_type, token_value = self.tokens[self.pos]
+        node = None
 
         if token_type == 'FUNC':
             func_name = token_value
@@ -71,28 +73,31 @@ class Parser:
             arg = self._parse_expression()
             if self.pos >= len(self.tokens) or self.tokens[self.pos][1] != ')':
                 raise InvalidExpressionError(f"Ожидалось ')' после аргумента функции {func_name}")
-            self.pos += 1
-            return {'function': func_name, 'argument': arg}
+            self.pos += 1 
+            node = {'function': func_name, 'argument': arg}
+
         elif token_type == 'CONST':
+            node = {'constant': token_value}
             self.pos += 1
-            return {'constant': token_value}
+
         elif token_value == '(':
             self.pos += 1
             node = self._parse_expression()
             if self.pos >= len(self.tokens) or self.tokens[self.pos][1] != ')':
                 raise InvalidExpressionError("Ожидалось ')'")
             self.pos += 1
-            return node
+
         elif token_type == 'NUMBER':
+            node = {'value': token_value}
             self.pos += 1
-            return {'value': token_value}
+
         else:
             raise InvalidExpressionError(f"Ожидалось число, функция или скобка")
 
-        # Обработка степени
         while self.pos < len(self.tokens) and self.tokens[self.pos][1] == '^':
             op = self.tokens[self.pos][1]
             self.pos += 1
             right = self._parse_factor()
             node = {'op': op, 'left': node, 'right': right}
+
         return node
