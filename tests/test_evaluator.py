@@ -63,3 +63,68 @@ def test_performance_mixed_operations():
     ast = Parser().parse(expression)
     result = Evaluator().evaluate(ast)
     assert math.isclose(result, math.sqrt(11) / 2, rel_tol=1e-9)
+    
+def test_performance_long_noisy_expression():
+    expression = "1 + 2 * 3 - 4 / 5 + sqrt(6) - ln(7) + 8^9 + " * 50 + "1" # 50 повторов
+    ast = Parser().parse(expression)
+    result = Evaluator().evaluate(ast)
+    
+def test_large_floating_point_numbers():
+    """Тест 1: Обработка очень больших чисел с плавающей точкой"""
+    parser = Parser()
+    evaluator = Evaluator()
+    expression = "1.23456789e300 * 9.87654321e200 / 1e100"
+    expected = 1.23456789e300 * 9.87654321e200 / 1e100
+    
+    ast = parser.parse(expression)
+    result = evaluator.evaluate(ast)
+    
+    assert math.isclose(result, expected, rel_tol=1e-9), f"Ожидалось {expected}, получено {result}"
+    
+def test_deep_function_nesting():
+    """Тест 3: Глубокая вложенность функций"""
+    parser = Parser()
+    evaluator = Evaluator()
+    expression = "sqrt(sin(cos(sin(cos(ln(e^pi))))))"
+    ast = parser.parse(expression)
+    result = evaluator.evaluate(ast)
+    
+    assert not math.isnan(result), "Результат не должен быть NaN"
+    assert not math.isinf(result), "Результат не должен быть бесконечностью"
+    
+def test_long_expression_chain():
+    """Тест 5: Длинная строка с повторяющимися операциями"""
+    parser = Parser()
+    evaluator = Evaluator()
+    base_expr = "1.5 * 2 - 3 / 4 + sqrt(5)^2 +"
+    expression = base_expr * 100 + "1"
+    ast = parser.parse(expression)
+    result = evaluator.evaluate(ast)
+    
+    assert math.isclose(result, 726.0, rel_tol=1e-3), f"Ожидалось ~725.0, получено {result}"
+    
+def test_operator_precedence():
+    """Тест 2: Проверка приоритета операций"""
+    parser = Parser()
+    evaluator = Evaluator()
+    expression = "10 - 3 * 2^3 / 4 + 5"  # 10 - (24/4) + 5 = 9
+    ast = parser.parse(expression)
+    result = evaluator.evaluate(ast)
+    
+    assert math.isclose(result, 9.0, rel_tol=1e-9), f"Ожидалось 9.0, получено {result}"
+    
+def test_extreme_subtraction():
+    expression = "1000000" + " - 0.1" * 100  # 1000000 - 0.1*100 = 999900.0
+    parser = Parser()
+    evaluator = Evaluator()
+    ast = parser.parse(expression)
+    result = evaluator.evaluate(ast)
+    assert math.isclose(result, 999990.0, rel_tol=1e-9)
+
+def test_repeated_division():
+    expression = "1000" + " / 2" * 10
+    parser = Parser()
+    evaluator = Evaluator()
+    ast = parser.parse(expression)
+    result = evaluator.evaluate(ast)
+    assert math.isclose(result, 1000 / (2**10), rel_tol=1e-9)

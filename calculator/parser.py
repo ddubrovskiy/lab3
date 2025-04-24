@@ -17,6 +17,8 @@ class Parser:
 
         tokens = []
         expression = expression.replace(" ", "").lower()
+        prev_token_type = None
+
         for match in token_pattern.finditer(expression):
             number, _, _, func_or_const, op_or_bracket, invalid = match.groups()
             
@@ -24,13 +26,22 @@ class Parser:
                 raise InvalidExpressionError(f"Недопустимый символ: {invalid}")
             elif number:
                 tokens.append(('NUMBER', float(number)))
+                prev_token_type = 'NUMBER'
             elif func_or_const:
                 if func_or_const in ('pi', 'e'):
                     tokens.append(('CONST', func_or_const))
                 else:
                     tokens.append(('FUNC', func_or_const))
-            elif op_or_bracket in ('+', '-', '*', '/', '^', '(', ')'):
-                tokens.append(('OP', op_or_bracket))
+                prev_token_type = 'FUNC'
+            elif op_or_bracket:
+                if op_or_bracket == '-' and (prev_token_type in (None, 'OP', 'BRACKET')):
+                    tokens.append(('UNARY_OP', '-'))
+                else:
+                    tokens.append(('OP', op_or_bracket))
+                prev_token_type = 'OP'
+            else:
+                prev_token_type = None
+
         return tokens
 
     def parse(self, expression: str) -> Union[float, dict]:
@@ -58,6 +69,10 @@ class Parser:
         return node
 
     def _parse_factor(self) -> dict:
+        if self.pos < len(self.tokens) and self.tokens[self.pos][1] == '-':
+            self.pos += 1
+            return {'op': '*', 'left': {'value': -1.0}, 'right': self._parse_factor()}
+
         if self.pos >= len(self.tokens):
             raise InvalidExpressionError("Неожиданный конец выражения")
 
@@ -69,7 +84,7 @@ class Parser:
             self.pos += 1
             if self.pos >= len(self.tokens) or self.tokens[self.pos][1] != '(':
                 raise InvalidExpressionError(f"Ожидалось '(' после функции {func_name}")
-            self.pos += 1
+            self.pos += 1 
             arg = self._parse_expression()
             if self.pos >= len(self.tokens) or self.tokens[self.pos][1] != ')':
                 raise InvalidExpressionError(f"Ожидалось ')' после аргумента функции {func_name}")
